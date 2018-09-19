@@ -1,0 +1,55 @@
+non-fluents res8 {
+	domain = reservoir;
+	objects{
+		res: {t1,t2,t3,t4,t5,t6,t7,t8};
+	};
+	non-fluents {
+		RAIN_SHAPE(t1) = 1.0;
+		RAIN_SCALE(t1) = 5.0;
+		RAIN_SHAPE(t2) = 1.0;
+		RAIN_SCALE(t2) = 3.0;
+		RAIN_SHAPE(t3) = 1.0;
+		RAIN_SCALE(t3) = 9.0;
+		RAIN_SHAPE(t4) = 1.0;
+		RAIN_SCALE(t4) = 7.0;
+		RAIN_SHAPE(t5) = 1.0;
+		RAIN_SCALE(t5) = 15.0;
+		RAIN_SHAPE(t6) = 1.0;
+		RAIN_SCALE(t6) = 13.0;
+		RAIN_SHAPE(t7) = 1.0;
+		RAIN_SCALE(t7) = 25.0;
+		RAIN_SHAPE(t8) = 1.0;
+		RAIN_SCALE(t8) = 30.0;
+		MAX_RES_CAP(t3) = 200.0;
+		UPPER_BOUND(t3) = 180.0;
+		MAX_RES_CAP(t4) = 300.0;
+		UPPER_BOUND(t4) = 280.0;
+		MAX_RES_CAP(t5) = 400.0;
+		UPPER_BOUND(t5) = 380.0;
+		MAX_RES_CAP(t6) = 500.0;
+		UPPER_BOUND(t6) = 480.0;
+		MAX_RES_CAP(t7) = 800.0;
+		UPPER_BOUND(t7) = 780.0;
+		MAX_RES_CAP(t8) = 1000.0;
+		UPPER_BOUND(t8) = 980.0;
+		DOWNSTREAM(t1,t6);
+		DOWNSTREAM(t2,t3);
+		DOWNSTREAM(t3,t5);
+		DOWNSTREAM(t4,t8);
+		DOWNSTREAM(t5,t7);
+		DOWNSTREAM(t6,t7);
+		DOWNSTREAM(t7,t8);
+		SINK_RES(t8);
+	};
+}
+
+instance inst_reservoir_res8 {
+	domain = reservoir;
+	non-fluents = res8;
+	init-state{
+		rlevel(t1) = 75.0;
+	};
+	max-nondef-actions = pos-inf;
+	horizon = 4;
+	discount = 1.0;
+}

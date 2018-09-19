@@ -1,0 +1,8 @@
+instance earth_enum_test_inst_mdp__1 {
+ 	domain = earth_test_enum_mdp;
+ 	objects {
+            die : {d1};
+        };
+	horizon = 10;
+ 	discount = 1.0;
+}

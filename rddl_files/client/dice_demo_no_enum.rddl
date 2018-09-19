@@ -1,0 +1,115 @@
+////////////////////////////////////////////////////////////////////
+//
+// RDDL MDP version without enums and interm-fluents of the Dice Game
+// demo domain for IPC 2018 by Thomas Keller (tho.keller [at] unibas.ch).
+//
+// This is a simple domain to show the usage of enum-valued
+// state-fluents. In each step, one die may be rolled, and the reward is
+// the sum of the pins on all (not just the rolled) die.
+//
+////////////////////////////////////////////////////////////////////
+
+domain dice_game_demo_mdp_no_enum {
+    requirements = {
+        reward-deterministic,
+        preconditions
+    };
+
+    types {
+        die : object;
+    };
+
+    pvariables {
+        // state-fluents to represent the artificial interm-fluent level
+        level-is-0              : {state-fluent, bool, default = true};
+        level-is-1              : {state-fluent, bool, default = false};
+        level-is-2              : {state-fluent, bool, default = false};
+        level-is-3              : {state-fluent, bool, default = false};
+        level-is-4              : {state-fluent, bool, default = false};
+        level-is-5              : {state-fluent, bool, default = false};
+        level-is-6              : {state-fluent, bool, default = false};
+
+        // remembers which die was rolled while artifical interm-levels
+        // are processed
+        die-rolled(die)         : {state-fluent, bool, default = false};
+
+        // state-fluents to represent the value of each die
+        die-value-is-one(die)   : {state-fluent, bool, default = true};
+        die-value-is-two(die)   : {state-fluent, bool, default = false};
+        die-value-is-three(die) : {state-fluent, bool, default = false};
+        die-value-is-four(die)  : {state-fluent, bool, default = false};
+        die-value-is-five(die)  : {state-fluent, bool, default = false};
+        die-value-is-six(die)   : {state-fluent, bool, default = false};
+
+        // action-fluents
+        roll(die)               : {action-fluent, bool, default = false};
+    };
+
+    cpfs {
+
+        // Since we cannot use enums for the sequential updates, we have
+        // to introduce dummy intermediate states with only one applicable
+        // action (noop) where we decide the result of the die roll
+        // sequentially and based on the previous results
+
+        // Variables that specify the current level (i.e., what is
+        // updated in this step)
+        level-is-0' = level-is-6;
+        level-is-1' = level-is-0;
+        level-is-2' = level-is-1;
+        level-is-3' = level-is-2;
+        level-is-4' = level-is-3;
+        level-is-5' = level-is-4;
+        level-is-6' = level-is-5;
+
+        // Variable to remember the action
+        die-rolled'(?d) = if (level-is-0) then roll(?d)
+                          else die-rolled(?d);
+
+        die-value-is-one'(?d) =
+            if ( level-is-1 & die-rolled(?d) )
+                then Bernoulli(1/6)
+            else die-value-is-one(?d);
+
+        die-value-is-two'(?d) =
+            if ( level-is-2 & die-rolled(?d) )
+                then ( ~die-value-is-one(?d) & Bernoulli(1/5) )
+            else die-value-is-two(?d);
+
+        die-value-is-three'(?d) =
+            if ( level-is-3 & die-rolled(?d) )
+                then ( ~die-value-is-one(?d) & ~die-value-is-two(?d) & Bernoulli(1/4) )
+            else die-value-is-three(?d);
+
+        die-value-is-four'(?d) =
+            if ( level-is-4 & die-rolled(?d) )
+                then ( ~die-value-is-one(?d) & ~die-value-is-two(?d) & ~die-value-is-three(?d) & Bernoulli(1/3) )
+            else die-value-is-four(?d);
+
+        die-value-is-five'(?d) =
+            if ( level-is-5 & die-rolled(?d) )
+                then ( ~die-value-is-one(?d) & ~die-value-is-two(?d) & ~die-value-is-three(?d) & ~die-value-is-four(?d) & Bernoulli(1/2) )
+            else die-value-is-five(?d);
+
+        die-value-is-six'(?d) =
+            if ( level-is-6 & die-rolled(?d) )
+                then ( ~die-value-is-one(?d) & ~die-value-is-two(?d) & ~die-value-is-three(?d) & ~die-value-is-four(?d) & ~die-value-is-five(?d) )
+            else die-value-is-six(?d);
+    };
+
+    reward = if (level-is-0) then (sum_{?d : die} [ (1 * die-value-is-one(?d))   + (2 * die-value-is-two(?d)) +
+                                                    (3 * die-value-is-three(?d)) + (4 * die-value-is-four(?d)) +
+                                                    (5 * die-value-is-five(?d))  + (6 * die-value-is-six(?d)) ] )
+             else 0;
+
+    action-preconditions {
+        // only one die may be rolled at a time
+        ( sum_{?d : die} [ roll(?d) ] ) <= 1;
+
+        // dice may only be rolled on level 0 (on all other levels, the
+        // only applicable action state is to not roll any die)
+        ( forall_{?d : die} [ roll(?d) => level-is-0 ] );
+    };
+}
+
+

@@ -1,0 +1,7 @@
+instance etitanic_inst_1 {
+ 	domain = etitanic_dom_mdp;
+
+
+	horizon = 10;
+ 	discount = 1.0;
+}

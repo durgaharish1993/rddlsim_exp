@@ -1,0 +1,291 @@
+domain domain_emergency_continuous_simplified{
+	
+	types {
+		coordinate : object;
+		unit : object; 
+		cause : object;
+		role : object;
+	};
+	
+	pvariables {
+		//state variables
+		currentCallCode(cause)    : {state-fluent, bool, default=false};
+		currentCallTime           : {state-fluent, real, default=0.0};
+		currentCallTimeOfDay      : {state-fluent, real, default=0.0};
+
+
+		currentCall(coordinate)   : {state-fluent, real, default=0};
+		timeServiceDone(unit) : {state-fluent, real, default=0.0};
+		timeBackInBase(unit) : {state-fluent, real, default=0.0};
+		lastUnitService(unit,coordinate) : {state-fluent, real, default=0.0};
+
+		tempUniformCause : {interm-fluent, real};
+
+		//need helpful interm variables 
+		callMiles(unit)      : {interm-fluent, real};
+		callTravelTime(unit) : {interm-fluent, real};
+
+		uniformNumber        : {interm-fluent, real};
+
+
+		returnMiles(unit) : {interm-fluent, real};
+		returnTravelTime(unit) : {interm-fluent, real}; 
+
+
+		unitInService(unit) : {interm-fluent, bool};
+		unitInBase(unit) : {interm-fluent, bool};
+		//unitOnSite(unit) : {interm-fluent, bool};
+
+
+		firstResponse : {interm-fluent, real};
+		fullResponse : {interm-fluent, real};
+		overwhelm : {interm-fluent, bool};
+		gapTime : {interm-fluent, real};
+		nextCallTimeOfDay : {interm-fluent, real};
+
+
+		//constants
+		unitHome(unit,coordinate) : {non-fluent, real, default=0.0};
+
+		MapUpperBound(coordinate) : {non-fluent, real, default=0};
+		MapLowerBound(coordinate) : {non-fluent, real, default=0};
+
+
+		BEFORE(cause,cause) : {non-fluent, bool, default=false};
+
+
+		RoleServiceTime(role) : {non-fluent, real, default=0.0};
+
+
+		MAX_INTER_ARRIVAL : {non-fluent, real, default=0.3};
+		
+		HasCapability(unit,role) : {non-fluent, bool, default=false};
+		CauseRequirement(cause,role) : {non-fluent, int, default=0};
+
+
+
+		//actions
+		dispatch(unit,role) : {action-fluent, bool, default=false};
+
+		W1 : {non-fluent, real, default=0.5};
+		W2 : {non-fluent, real, default=0.5};
+		W3 : {non-fluent, real, default=0};
+		W4 : {non-fluent, real, default=0};
+
+	};
+
+
+
+	cpfs {
+
+
+		//These are for emergency calls
+
+		tempUniformCause = Uniform(0,sum_{?c:cause}[1]);
+
+		//currentCallCode'(?c) = (tempUniformCause >= sum_{?d:cause}[BEFORE(?c,?d)]) ^ (tempUniformCause < 
+		//1+sum_{?d:cause}[BEFORE(?c,?d)]);
+			 
+		gapTime = MAX_INTER_ARRIVAL; 
+		//Uniform(0, MAX_INTER_ARRIVAL );
+
+
+		nextCallTimeOfDay = if (currentCallTimeOfDay+gapTime >= 24)
+							then currentCallTimeOfDay+gapTime - 24
+							else currentCallTimeOfDay+gapTime;
+						   
+		currentCallTimeOfDay' = nextCallTimeOfDay; 
+						   
+		currentCallTime' = currentCallTime + gapTime;
+
+
+		uniformNumber = Uniform(0,1);
+
+		currentCall'(?c) = if (uniformNumber <= 0.4) 
+						   then if (?c==$xpos) then Normal(1340,0.2) else Normal(55,0.2)
+						   else if (?c==$xpos) then Normal(1479,0.2) else Normal(49,0.2);
+
+		
+		//currentCall'(?c) = Uniform( MapLowerBound(?c), MapUpperBound(?c) );//Normal( 0.5*CurrentCallTime )
+		
+
+
+		//All about vehicles
+
+		//This looks good
+		lastUnitService'(?u,?c) = if (exists_{?r:role}[dispatch(?u,?r)])
+								  then currentCall(?c)
+								  else if (unitInBase(?u)) 
+								  then unitHome(?u,?c) 
+								  else lastUnitService(?u,?c);
+		
+		//This looks good
+		callMiles(?u) = if (unitInBase(?u)) 
+						      then (sum_{?c:coordinate}[ abs[ unitHome(?u,?c)-currentCall(?c) ] ])
+							  else (sum_{?c:coordinate}[ abs[ lastUnitService(?u,?c)- unitHome(?u,?c) ] + abs[currentCall(?c) - unitHome(?u,?c) ] ]);
+		
+
+
+		//This looks good
+		callTravelTime(?u) = (if (callMiles(?u) <= 5) 
+						 then callMiles(?u)/38.0
+						 else if (callMiles(?u) > 5 ^ callMiles(?u) <= 7)
+						 then callMiles(?u)/42.0
+						 else if (callMiles(?u) > 7 ^ callMiles(?u) <= 12)
+						 then callMiles(?u)/40.0
+						 else if (callMiles(?u) > 12 ^ callMiles(?u) <= 15)
+						 then callMiles(?u)/48.0
+						 else if (callMiles(?u) > 15 ^ callMiles(?u) <= 17.5)
+						 then callMiles(?u)/56.0
+						 else if (callMiles(?u) > 17.5 ^ callMiles(?u) <= 20)
+						 then callMiles(?u)/52.0
+						 else if (callMiles(?u) > 20 ^ callMiles(?u) <= 25)
+						 then callMiles(?u)/50.0
+						 else if (callMiles(?u) > 25 ^ callMiles(?u) <= 28.5)
+						 then callMiles(?u)/54.0
+						 else if (callMiles(?u) > 28.5 ^ callMiles(?u) <= 41)
+						 then callMiles(?u)/49.0
+						 else if (callMiles(?u) > 41 ^ callMiles(?u) <= 70)
+						 then callMiles(?u)/70.0
+						 else if (callMiles(?u) > 70 ^ callMiles(?u) <= 500)
+						 then callMiles(?u)/70.0
+						 else callMiles(?u)/70.0);
+							
+							
+		//This looks good		
+		returnMiles(?u) = ( sum_{?c:coordinate}[ abs[ currentCall(?c) - unitHome(?u,?c) ] ] );
+		
+		//This looks good
+		returnTravelTime(?u) = if (returnMiles(?u) <= 5) 
+						 then returnMiles(?u)/38.0
+						 else if (returnMiles(?u) > 5 ^ returnMiles(?u) <= 7)
+						 then returnMiles(?u)/42.0
+						 else if (returnMiles(?u) > 7 ^ returnMiles(?u) <= 12)
+						 then returnMiles(?u)/40.0
+						 else if (returnMiles(?u) > 12 ^ returnMiles(?u) <= 15)
+						 then returnMiles(?u)/48.0
+						 else if (returnMiles(?u) > 15 ^ returnMiles(?u) <= 17.5)
+						 then returnMiles(?u)/56.0
+						 else if (returnMiles(?u) > 17.5 ^ returnMiles(?u) <= 20)
+						 then returnMiles(?u)/52.0
+						 else if (returnMiles(?u) > 20 ^ returnMiles(?u) <= 25)
+						 then returnMiles(?u)/50.0
+						 else if (returnMiles(?u) > 25 ^ returnMiles(?u) <= 28.5)
+						 then returnMiles(?u)/54.0
+						 else if (returnMiles(?u) > 28.5 ^ returnMiles(?u) <= 41)
+						 then returnMiles(?u)/49.0
+						 else if (returnMiles(?u) > 41 ^ returnMiles(?u) <= 70)
+						 then returnMiles(?u)/70.0
+						 else if (returnMiles(?u) > 70 ^ returnMiles(?u) <= 500)
+						 then returnMiles(?u)/70.0
+						 else returnMiles(?u)/70.0;
+		
+		firstResponse = min_{?u:unit}[ if (exists_{?r:role}[dispatch(?u,?r)])
+						   then callTravelTime(?u) 
+						   else (sum_{?c:coordinate}[MapUpperBound(?c)-MapLowerBound(?c)])/38.0 ];
+		
+		fullResponse = if (overwhelm)
+					   then (sum_{?c:coordinate}[MapUpperBound(?c)-MapLowerBound(?c)])/38.0
+					   else max_{?u:unit}[ 
+							if (exists_{?r:role}[dispatch(?u,?r)])
+							then callTravelTime(?u) 
+							else 0.0 ];//instead of 25 mins
+							
+		overwhelm = exists_{?r:role,?c:cause}[ currentCallCode(?c) ^ (CauseRequirement(?c,?r) > (sum_{?u:unit}[dispatch(?u,?r)])) ];
+		
+		
+
+
+		timeServiceDone'(?u) = if (exists_{?r:role}[dispatch(?u,?r)]) 
+						   then (currentCallTime + callTravelTime(?u) + (sum_{?r:role}[ if (dispatch(?u,?r)) then RoleServiceTime(?r) else 0.0]))
+						   else timeServiceDone(?u);
+						
+
+						
+		timeBackInBase'(?u) = if (exists_{?r:role}[dispatch(?u,?r)])
+						  then (currentCallTime + callTravelTime(?u) + (sum_{?r:role}[ if (dispatch(?u,?r)) then RoleServiceTime(?r) else 0.0]) +  returnTravelTime(?u))
+						  else timeBackInBase(?u);
+								  
+		unitInService(?u) = unitInBase(?u);
+		
+		unitInBase(?u) = (currentCallTime >= timeBackInBase(?u));
+		
+		
+
+
+
+
+
+
+	};
+
+
+	//reward = [sum_{?u:unit,?r:role}[dispatch(?u,?r)]];
+	reward = [- (W1*firstResponse) - (W2*fullResponse)];
+	state-invariants {
+		
+		
+		forall_{?u:unit}[ (timeBackInBase(?u) >= 0) ];
+		forall_{?u:unit}[ (timeServiceDone(?u) >= 0) ];
+		
+		forall_{?u:unit}[ callMiles(?u) >= 0 ];
+		forall_{?u:unit}[ callMiles(?u) <= (sum_{?c:coordinate}[ MapUpperBound(?c)-MapLowerBound(?c) ]) ];
+		forall_{?u:unit}[ callTravelTime(?u) >= 0 ];
+		forall_{?u:unit}[ callTravelTime(?u) <= (sum_{?c:coordinate}[ MapUpperBound(?c)-MapLowerBound(?c) ])/38.0 ];
+		
+		forall_{?u:unit}[ returnMiles(?u) >= 0 ];
+		forall_{?u:unit}[ returnMiles(?u) <= (sum_{?c:coordinate}[ MapUpperBound(?c)-MapLowerBound(?c) ]) ];
+		forall_{?u:unit}[ returnTravelTime(?u) >= 0 ];
+		forall_{?u:unit}[ returnTravelTime(?u) <= (sum_{?c:coordinate}[ MapUpperBound(?c)-MapLowerBound(?c) ])/38.0 ];
+		
+		forall_{?u:unit,?c:coordinate}[ lastUnitService(?u,?c) <= MapUpperBound(?c) ];
+		forall_{?u:unit,?c:coordinate}[ lastUnitService(?u,?c) >= MapLowerBound(?c) ];
+		forall_{?c:coordinate}[ currentCall(?c) <= MapUpperBound(?c) ];
+		forall_{?c:coordinate}[ currentCall(?c) >= MapLowerBound(?c) ];
+		
+		currentCallTime >= 0; 
+		
+		forall_{?u:unit, ?c:coordinate}[ unitHome(?u,?c) <= MapUpperBound(?c) ];
+		forall_{?u:unit, ?c:coordinate}[ unitHome(?u,?c) >= MapLowerBound(?c) ];
+		
+		(sum_{?c:cause}[currentCallCode(?c)]) == 1;
+		
+		tempUniformCause >= 0; tempUniformCause <= (sum_{?c:cause}[1]);
+		
+		forall_{?c:cause,?r:role}[CauseRequirement(?c,?r) >= 0];
+		
+		forall_{?r:role}[ RoleServiceTime(?r) >= 0 ];
+		
+		
+				
+		firstResponse >= 0.0; firstResponse <= (sum_{?c:coordinate}[MapUpperBound(?c)-MapLowerBound(?c)])/38.0;
+		fullResponse >= 0.0; fullResponse <= (sum_{?c:coordinate}[MapUpperBound(?c)-MapLowerBound(?c)])/38.0;
+		
+		gapTime > 0; gapTime < 24;
+		
+	};
+
+
+
+	action-preconditions {
+		forall_{?u:unit,?r:role}[ (~dispatch(?u,?r)) | unitInService(?u) ];
+		forall_{?u:unit}[(sum_{?r:role}[ dispatch(?u,?r) ]) <= 1];
+
+		[sum_{?u:unit,?r:role}[dispatch(?u,?r)]] <= [sum_{?ca:cause,?r:role}[ if  (currentCallCode(?ca)) then  CauseRequirement(?ca,?r) else 0.0]];
+
+
+		forall_{?u:unit,?r:role}[ ~dispatch(?u,?r) | HasCapability(?u,?r) ];
+
+	};
+
+
+}
+
+
+
+
+
+
+
+
+

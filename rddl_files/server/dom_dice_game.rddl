@@ -1,0 +1,51 @@
+////////////////////////////////////////////////////////////////////
+//
+// RDDL MDP version of the Dice Game demo domain for IPC 2018 by Thomas
+// Keller (tho.keller [at] unibas.ch).
+//
+// This is a simple domain to show the usage of enum-valued
+// state-fluents. In each step, one die may be rolled, and the reward is
+// the sum of the pins on all (not just the rolled) die.
+//
+////////////////////////////////////////////////////////////////////
+
+domain dice_game_demo_mdp {
+    requirements = { 
+        reward-deterministic,
+        preconditions
+    };
+
+    types {
+        die            : object;
+        small-int      : {@1, @2, @3, @4, @5, @6};
+    };
+
+    pvariables {
+        // state-fluents
+        die-value(die) : {state-fluent, small-int, default = @1};
+
+        // action-fluents
+        roll(die)      : {action-fluent, bool, default = false};
+    };
+
+    cpfs {
+        die-value'(?d) =
+            if ( roll(?d) ) then Discrete(small-int,
+                                          @1 : 1/6,
+                                          @2 : 1/6,
+                                          @3 : 1/6,
+                                          @4 : 1/6,
+                                          @5 : 1/6,
+                                          @6 : 1/6)
+            else die-value(?d);
+    };
+    
+    reward = sum_{?d : die} [ (1 * (die-value(?d) == @1)) + (2 * (die-value(?d) == @2)) +
+                              (3 * (die-value(?d) == @3)) + (4 * (die-value(?d) == @4)) +
+                              (5 * (die-value(?d) == @5)) + (6 * (die-value(?d) == @6)) ]; 
+        
+    action-preconditions {
+        // only one die may be rolled at a time
+        ( sum_{?d : die} [ roll(?d) ] ) <= 1;
+    };
+}

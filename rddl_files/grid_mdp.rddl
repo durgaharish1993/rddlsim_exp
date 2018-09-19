@@ -1,0 +1,78 @@
+domain grid_mdp {
+ 			requirements = {
+ 				constrained-state,
+ 				reward-deterministic
+ 			};
+ 		
+ 			types {
+ 				xpos : object;
+ 				ypos : object;
+ 			};
+ 		
+ 			pvariables {
+ 		
+ 				NORTH(ypos, ypos) : {non-fluent, bool, default = false};
+ 				SOUTH(ypos, ypos) : {non-fluent, bool, default = false};
+ 				EAST(xpos, xpos)  : {non-fluent, bool, default = false};
+ 				WEST(xpos, xpos)  : {non-fluent, bool, default = false};
+ 		
+ 				MIN-XPOS(xpos) : {non-fluent, bool, default = false};
+ 				MAX-XPOS(xpos) : {non-fluent, bool, default = false};
+ 				MIN-YPOS(ypos) : {non-fluent, bool, default = false};
+ 				MAX-YPOS(ypos) : {non-fluent, bool, default = false};
+ 		
+ 				GOAL(xpos,ypos) : {non-fluent, bool, default = false};
+ 		
+ 				robot-at-x(xpos) : {state-fluent, bool, default = false};
+				robot-at-y(ypos) : {state-fluent, bool, default = false};
+		
+
+				delta-x-1 : {action-fluent, bool, default = false };
+				delta-x-2 : {action-fluent, bool, default = false };
+				delta-y-1 : {action-fluent, bool, default = false };
+				delta-y-2 : {action-fluent, bool, default = false };
+				
+ 			};
+ 		
+ 			cpfs {
+ 		
+ 				robot-at-x'(?x) =
+					if ( ~robot-at-x(?x) ^ ( exists_{?x2:xpos}[ EAST(?x,?x2) ^ delta-x-1 ^ ~delta-x-2 ^ robot-at-x(?x2) ] 
+							| exists_{?x2:xpos}[ WEST(?x,?x2) ^ ~delta-x-1 ^ delta-x-2 ^ robot-at-x(?x2) ] ) )
+					then 
+						true//arriving from other x
+					else if ( robot-at-x(?x) ^ ( exists_{?x2:xpos}[ EAST(?x,?x2) ] ^ ~delta-x-1 ^ delta-x-2 
+					|  exists_{?x2:xpos}[ WEST(?x,?x2) ] ^ delta-x-1 ^ ~delta-x-2 ) )
+					then
+						false//vacate this x
+					else 
+						 robot-at-x(?x) ;
+						
+				robot-at-y'(?y) = 
+					if ( ~robot-at-y(?y) ^ ( exists_{?y2:ypos}[ NORTH(?y,?y2) ^ delta-y-1 ^ ~delta-y-2 ^ robot-at-y(?y2) ] 
+							| exists_{?y2:ypos}[ SOUTH(?y,?y2) ^ ~delta-y-1 ^ delta-y-2 ^ robot-at-y(?y2) ] ) )
+					then 
+						true//arriving from other y
+					else if ( robot-at-y(?y) ^ ( exists_{?y2:ypos}[ NORTH(?y,?y2) ] ^ ~delta-y-1 ^ delta-y-2 
+					|  exists_{?y2:ypos}[ SOUTH(?y,?y2) ] ^ delta-y-1 ^ ~delta-y-2 ) )
+					then
+						false//vacate this y
+					else 
+						 robot-at-y(?y) ;
+					
+					
+ 		
+ 			};
+ 		
+ 			// 0 reward for reaching goal, -1 in all other cases
+ 			reward = sum_{?x : xpos, ?y : ypos}[ GOAL(?x,?y) * robot-at-x(?x) * robot-at-y(?y) ];
+ 		
+ 			state-invariants {
+				//move-north + move-south + move-west + move-east <= 1;
+ 				// Robot at exactly one position
+ 				[sum_{?x : xpos} robot-at-x(?x)] == 1;
+				[sum_{?y : ypos} robot-at-y(?y)] == 1;
+				
+ 			};
+ 		
+ 		}

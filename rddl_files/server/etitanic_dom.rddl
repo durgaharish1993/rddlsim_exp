@@ -1,0 +1,30 @@
+domain etitanic_dom_mdp {
+
+
+        types {
+                die: object;
+                sex : {@Male,@Female};
+                class : {@First,@Second,@Third};
+           };
+		pvariables {
+				sibp     : {state-fluent, int, default = 0};
+				sex      : {state-fluent,sex,default=@Male};
+				survived : {state-fluent,bool,default=false};
+				pclass   : {state-fluent,class,default=@Third};
+				age      : {state-fluent, real,default=0.0};
+				parch    : {state-fluent, int,default=0};
+
+ 			};
+ 			cpfs {
+                   pclass' = if ((max[((0.03420177 + (0.2628242 * survived)) + (0.01714237 * (0.0 max (age - 26.0)))), ((0.2460647 + (0.03304496 * survived)) + (-0.001322728 * (0.0 max (age - 26.0)))), ((0.7197335 + (-0.2958692 * survived)) + (-0.01581964 * (0.0 max (age - 26.0))))] == ((0.03420177 + (0.2628242 * survived)) + (0.01714237 * (0.0 max (age - 26.0)))))) then [@First] else [if ((max[((0.03420177 + (0.2628242 * survived)) + (0.01714237 * (0.0 max (age - 26.0)))), ((0.2460647 + (0.03304496 * survived)) + (-0.001322728 * (0.0 max (age - 26.0)))), ((0.7197335 + (-0.2958692 * survived)) + (-0.01581964 * (0.0 max (age - 26.0))))] == ((0.2460647 + (0.03304496 * survived)) + (-0.001322728 * (0.0 max (age - 26.0)))))) then [@Second] else [if ((max[((0.03420177 + (0.2628242 * survived)) + (0.01714237 * (0.0 max (age - 26.0)))), ((0.2460647 + (0.03304496 * survived)) + (-0.001322728 * (0.0 max (age - 26.0)))), ((0.7197335 + (-0.2958692 * survived)) + (-0.01581964 * (0.0 max (age - 26.0))))] == ((0.7197335 + (-0.2958692 * survived)) + (-0.01581964 * (0.0 max (age - 26.0)))))) then [@Third] else [@Third]]]
+
+
+
+ 			};
+
+ 			reward = pclass==@First ;
+
+
+
+
+}

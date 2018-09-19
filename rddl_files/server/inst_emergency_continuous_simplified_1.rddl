@@ -1,0 +1,85 @@
+non-fluents nf_emergency_continuous_simplified_1 {
+	domain = domain_emergency_continuous_simplified;
+	objects {
+		coordinate : {xpos,ypos};
+		unit : {u1};
+		cause : {Code1Medical,Code3Med,Code3Trauma,Fire};
+		role : {Ambulance};
+	};
+	
+	non-fluents {
+		MapUpperBound(xpos)=1500;
+		MapUpperBound(ypos)=80;
+		MapLowerBound(xpos)=1300;
+		MapLowerBound(ypos)=30;
+	
+
+		
+		
+		BEFORE(Code3Med,Code3Trauma)=true;
+		
+
+
+		BEFORE(Code3Trauma,Fire)=true;
+		BEFORE(Code3Trauma,Code3Med)=true;
+
+
+		BEFORE(Fire,Code1Medical)=true;
+		BEFORE(Fire,Code3Trauma)=true;
+		BEFORE(Fire,Code3Med)=true;
+
+		
+		
+		
+		
+
+
+
+
+
+
+
+		CauseRequirement(Fire,Ambulance)=1;
+		CauseRequirement(Code1Medical,Ambulance)=1;
+		CauseRequirement(Code3Med,Ambulance)=1;
+		CauseRequirement(Code3Trauma,Ambulance)=1;
+		
+
+		RoleServiceTime(Ambulance)=0.03;
+		
+		
+
+
+
+		unitHome(u1,xpos)=1480.0; unitHome(u1,ypos)=50.0;	
+
+
+
+		HasCapability(u1,Ambulance)=true;
+
+		
+	};
+}
+
+instance inst_emergency_continuous_simplified_1 {
+	domain = domain_emergency_continuous_simplified;
+	non-fluents = nf_emergency_continuous_simplified_1;
+	
+	init-state {
+		
+		currentCall(xpos)=1479.4;
+		currentCall(ypos)=49.2;
+		currentCallTime=0.0;
+		currentCallCode(Code1Medical)=true;
+		
+
+		lastUnitService(u1,xpos)=1480.0; lastUnitService(u1,ypos)=50.0;
+	
+		
+		
+	};
+	
+	//max-nondef-actions = 10;
+	horizon  = 100;
+	discount = 1.0;
+}

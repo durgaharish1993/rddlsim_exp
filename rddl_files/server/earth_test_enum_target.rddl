@@ -1,0 +1,44 @@
+domain earth_test_enum_mdp {
+
+
+        types {
+                die: object;
+                small-int : {@1, @2, @3};
+           };
+		pvariables {
+				x1(die)    : {state-fluent, real, default = 10.0};
+				xenum1(die) : {state-fluent,small-int,default=@1};
+				xbool1(die) : {state-fluent,bool,default=false};
+				THRESHOLD   : {non-fluent,real,default=5.0};
+				a1(die) : {action-fluent, bool,default=false};
+ 			};
+ 			cpfs {
+
+				xenum1'(?d) = if( ( x1(?d) * x1(?d) ) < THRESHOLD  ) then Discrete(small-int,
+                                                                                              @1 : 1/6,
+                                                                                              @2 : 1/6,
+                                                                                              @3 : 1/6,
+                                                                                              @4 : 1/6,
+                                                                                              @5 : 1/6,
+                                                                                              @6 : 1/6 )
+                                               else xenum1(?d);
+
+
+                xbool1'(?d) = if((x1(?d)*x1(?d) ) > THRESHOLD) then true else xbool1(?d);
+
+
+
+
+
+				x1'(?d) = if ( a1(?d) ) then x1(?d)*2 else x1(?d);
+ 			};
+
+ 			reward = sum_{?d : die} [x1(?d) + (xenum1(?d)==@1) + xbool1(?d)] ;
+
+ 			action-preconditions {
+
+                    ( sum_{?d : die} [ a1(?d) ] ) <= 1;
+                };
+
+
+}

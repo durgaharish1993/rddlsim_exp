@@ -1,0 +1,50 @@
+non-fluents pics3 {
+
+        domain = simple_mars_rover;
+
+        // Three pictures
+        objects {
+                picture-point : {p1, p2, p3};
+        };
+
+        non-fluents {
+
+        MAX_TIME = 12.0;
+                MOVE_VARIANCE_MULT = 0.1;
+
+                PICT_XPOS(p1)  =  1.0;
+                PICT_YPOS(p1)  = -1.0;
+                PICT_VALUE(p1) =  5.0;
+                PICT_ERROR_ALLOW(p1) = 2;
+
+                PICT_XPOS(p2)  =  1.0;
+                PICT_YPOS(p2)  =  1.0;
+                PICT_VALUE(p2) = 10.0;
+                PICT_ERROR_ALLOW(p2) = .2; // Fairly tight constraints given noise
+
+                PICT_XPOS(p3)  =  2.0;
+                PICT_YPOS(p3)  = -1.0;
+                PICT_VALUE(p3) =  7.0;
+                PICT_ERROR_ALLOW(p3) = 1.5;
+
+        };
+}
+
+instance inst_simple_mars_rover_pics3 {
+
+        domain = simple_mars_rover;
+
+        non-fluents = pics3;
+
+        init-state {
+                xPos = 1.0;
+                yPos = -1.0;
+                time = 0.0;
+        };
+
+        // State-action constraints above are sufficient
+        max-nondef-actions = pos-inf;
+
+        horizon  = 40;
+        discount = 1.0;
+}

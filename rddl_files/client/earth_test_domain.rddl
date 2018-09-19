@@ -1,0 +1,30 @@
+domain earth_test_mdp {
+
+
+        types {
+                die: object;
+
+
+           };
+		pvariables {
+
+				x1(die) : {state-fluent, real, default = 0.0};
+				x2(die) : {state-fluent, real, default = 0.0};
+				a1(die) : {action-fluent, bool,default=false};
+
+ 			};
+
+ 			cpfs {
+				x1'(?d) = x1(?d)*x2(?d);
+				x2'(?d) = if ( a1(?d) ) then x2(?d)*2 else x2(?d);
+ 			};
+
+ 			reward = sum_{?d : die} [x1(?d)+x2(?d)];
+
+ 			action-preconditions {
+
+                    ( sum_{?d : die} [ a1(?d) ] ) <= 1;
+                };
+
+
+}

@@ -1,0 +1,35 @@
+non-fluents nf_grid_inst_mdp__1 {
+ 			domain = grid_mdp;
+ 			objects {
+ 				xpos : {x1, x2, x3};
+ 				ypos : {y1, y2, y3};
+ 			};
+ 			non-fluents {
+ 				GOAL(x3,y3);
+ 		
+ 				SOUTH(y3,y2);
+ 				SOUTH(y2,y1);
+ 		
+ 				NORTH(y1,y2);
+ 				NORTH(y2,y3);
+ 		
+ 				WEST(x3,x2);
+ 				WEST(x2,x1);
+ 		
+ 				EAST(x1,x2);
+ 				EAST(x2,x3);
+ 		
+ 				MAX-YPOS(y3);
+ 				MIN-YPOS(y1);
+ 				MAX-XPOS(x3);
+ 				MIN-XPOS(x1);
+ 			};
+ 		}
+ 		
+		instance grid_inst_mdp__1 {
+ 			domain = grid_mdp;
+ 			non-fluents = nf_grid_inst_mdp__1;
+ 			max-nondef-actions = 4;
+ 			horizon = 40;
+ 			discount = 1.0;
+ 		}
