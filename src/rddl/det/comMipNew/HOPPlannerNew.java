@@ -439,7 +439,7 @@ public class HOPPlannerNew extends Policy {
 
         if( static_grb_model == null ){
             System.out.println("----Initializing Gurobi model----");
-            firstTimeModel( );
+            firstTimeModel( subs);
         }
         try {
             Pair<Map<EXPR, Double>,Integer> out_put = doPlan( subs, RECOVER_INFEASIBLE );
@@ -468,7 +468,7 @@ public class HOPPlannerNew extends Policy {
         return null;
     }
 
-    private void firstTimeModel( ) {
+    protected void firstTimeModel( HashMap<PVAR_NAME, HashMap<ArrayList<LCONST>, Object>> subs) {
         try {
             System.out.println("1. initializeGRB \n" +
                     "2. addExtraPredicates \n" +
@@ -477,6 +477,8 @@ public class HOPPlannerNew extends Policy {
             initializeGRB( );
             addExtraPredicates();
             addAllVariables();
+            //This translate cpt works on deterministic expressions.
+            translateCPTs(subs,this.static_grb_model,true);
             translateConstraints( this.static_grb_model );
             translateReward( this.static_grb_model , true );
         } catch (Exception e) {
@@ -514,7 +516,7 @@ public class HOPPlannerNew extends Policy {
             System.out.println("Error code : " + error_code );
             if( recover ){//error_code == GRB.ERROR_OUT_OF_MEMORY && recover ){
 //				cleanUp(static_grb_model);
-                handleOOM( static_grb_model );
+                handleOOM( static_grb_model,subs );
                 return doPlan( subs, RECOVER_INFEASIBLE );//can cause infinite loop if set to true
             }else{
                 System.out.println("The Solution is Infeasible");
@@ -914,7 +916,9 @@ public class HOPPlannerNew extends Policy {
                                     constants, objects, hmtypes, hm_variables )
                                     .substitute(Collections.singletonMap(future_PREDICATE, future_term), constants, objects, hmtypes, hm_variables );
                             //System.out.println( subs_tf );//"Reward_" + time_term + "_" + future_term );
-
+                            if(subs_tf.toString().equals("(0 - ~((agent-at($x3, $y3, $time0, $future0))))")){
+                                System.out.println("dfjkdfkdkfj");
+                            }
                             synchronized (grb_model) {
 
                                 GRBVar this_future_var = subs_tf.getGRBConstr(
@@ -992,10 +996,18 @@ public class HOPPlannerNew extends Policy {
                                         cpf = rddl_state._hmCPFs.get(new PVAR_NAME(p._sPVarName));
                                     }
 
-                                    if ( !first_time && cpf._exprEquals._bDet &&
-                                            !replace_cpf_pwl.containsKey(p)) {
-                                        System.out.println("---Skipping" + p );
-                                        return;
+
+                                    if( first_time ){
+                                        if(!cpf._exprEquals._bDet && !replace_cpf_pwl.containsKey(p)){
+                                            System.out.println("Skipping----"+p);
+                                            return;
+                                        }
+
+                                    }else{
+                                        if(cpf._exprEquals._bDet && !replace_cpf_pwl.containsKey(p)){
+                                            System.out.println("Skipping-----"+p);
+                                           return;
+                                        }
                                     }
 
                                     Map<LVAR, LCONST> subs = getSubs(cpf._exprVarName._alTerms, terms);
@@ -1008,7 +1020,7 @@ public class HOPPlannerNew extends Policy {
                                     } else {
                                         final Pair<String,String> key = new Pair<>(
                                                 cpf._exprEquals.toString(), subs.toString());
-                                        if ( substitute_expression_cache .containsKey(key) ){
+                                        if ( substitute_expression_cache.containsKey(key) ){
                                             new_rhs_stationary = substitute_expression_cache.get(key);
                                         }else{
                                             new_rhs_stationary = cpf._exprEquals.substitute(subs,
@@ -1491,116 +1503,6 @@ public class HOPPlannerNew extends Policy {
 
 
 
-    protected Map< EXPR, Double > extractInformationGurobi( final GRBModel grb_model ) throws GRBException {
-
-        System.out.println("------This is output results for GRB MODEL -------");
-//		DecimalFormat df = new DecimalFormat("#.##########");
-//		df.setRoundingMode( RoundingMode.DOWN );
-        if( grb_model.get( GRB.IntAttr.SolCount ) == 0 ){
-            return null;
-        }
-
-        Map< EXPR, Double > ret = new HashMap< EXPR, Double >();
-
-        HashMap<PVAR_NAME, ArrayList<ArrayList<LCONST>>> src = new HashMap<>();
-        src.putAll( rddl_action_vars );
-        src.putAll( rddl_interm_vars );
-        src.putAll( rddl_state_vars );
-
-        src.forEach( new BiConsumer<PVAR_NAME, ArrayList<ArrayList<LCONST> > >( ) {
-
-            @Override
-            public void accept(PVAR_NAME pvar,
-                               ArrayList<ArrayList<LCONST>> u) {
-                u.forEach( new Consumer< ArrayList<LCONST> >( ) {
-                    @Override
-                    public void accept(ArrayList<LCONST> terms ) {
-                        future_TERMS.forEach( new Consumer<LCONST>() {
-                            @Override
-                            public void accept(LCONST future_term) {
-                                try {
-                                    EXPR action_var = new PVAR_EXPR( pvar._sPVarName, terms )
-                                            .addTerm(TIME_PREDICATE, constants, objects, hmtypes, hm_variables )
-                                            .addTerm(future_PREDICATE, constants, objects, hmtypes, hm_variables )
-                                            .substitute( Collections.singletonMap( TIME_PREDICATE, TIME_TERMS.get(0) ), constants, objects, hmtypes, hm_variables )
-                                            .substitute( Collections.singletonMap( future_PREDICATE, future_term ) , constants, objects, hmtypes, hm_variables );
-
-                                    //Please ignore the commented code, this was for testing
-//                                    for(EXPR key : EXPR.grb_cache.keySet()){
-//                                        if(key.toString().equals("(roll($d1, $time0, $future0) ^ roll($d2, $time0, $future0) ^ roll($d3, $time0, $future0) ^ roll($d4, $time0, $future0) ^ roll($d5, $time0, $future0))")){
-//                                            System.out.println("dfdkjfkdj");
-//                                        }
-//                                        if(key.toString().equals("((current-phase($time0, $future0) == @roll1) => (roll($d1, $time0, $future0) ^ roll($d2, $time0, $future0) ^ roll($d3, $time0, $future0) ^ roll($d4, $time0, $future0) ^ roll($d5, $time0, $future0)))")){
-//                                            System.out.println("dkjfdkjfd");
-//
-//                                        }
-//                                        if(key.toString().equals("(current-phase($time0, $future0) == @roll1)")){
-//                                            System.out.println("djfkdjfkd");
-//                                        }
-//
-//                                        if(key.toString().equals("~(current-phase($time0, $future0) == @roll1)")){
-//                                            System.out.println("dkjfkdjf");
-//                                        }
-//
-//                                        if(key.toString().equals("current-phase($time0, $future0)")){
-//                                            System.out.println("kdjfkdjkf");
-//                                        }
-//
-//                                        if(key.toString().equals("@roll1")){
-//                                            System.out.println("dkfjkdkfdj");
-//                                        }
-//
-//                                        if(key.toString().equals("(die-value($d1, $time0, $future0) == @1)")){
-//                                            System.out.println("kdjkjdkfjkdjf");
-//                                        }
-//
-//                                        if(key.toString().equals("die-value($d1, $time0, $future0)")){
-//                                            System.out.println("dkfkdjkfjdk");
-//                                        }
-//
-//                                        if(key.toString().equals("(agent-at($x3, $y3, $time0, $future0) == 0)")){
-//                                            System.out.println("djkfjdfkd");
-//                                        }
-//
-//                                    }
-
-
-                                    //System.out.println(action_var);
-                                    GRBVar grb_var = EXPR.grb_cache.get( action_var );
-                                    assert( grb_var != null );
-                                    double actual = grb_var.get( GRB.DoubleAttr.X );
-
-                                    //NOTE : uncomment this part if having issues with constrained actions
-                                    // such as if you get -1E-11 instead of 0,
-                                    //and you are expecting a positive action >= 0
-                                    String interm_val = State._df.format( actual );
-                                    //System.out.println( actual + " rounded to " + interm_val );
-
-                                    ret.put( action_var, Double.valueOf(  interm_val ) );
-                                } catch (GRBException e) {
-                                    e.printStackTrace();
-                                    ////System.exit(1);
-                                }
-                                catch (Exception e){
-                                    e.printStackTrace();
-                                }
-
-                            }
-                        });
-                    }
-                });
-            }
-
-        });
-
-        System.out.println( "Maximum (unscaled) bound violation : " +  + grb_model.get( GRB.DoubleAttr.BoundVio	) );
-        System.out.println("Sum of (unscaled) constraint violations : " + grb_model.get( GRB.DoubleAttr.ConstrVioSum ) );
-        System.out.println("Maximum integrality violation : "+ grb_model.get( GRB.DoubleAttr.IntVio ) );
-        System.out.println("Sum of integrality violations : " + grb_model.get( GRB.DoubleAttr.IntVioSum ) );
-        System.out.println("Objective value : " + grb_model.get( GRB.DoubleAttr.ObjVal ) );
-
-        return ret;
-    }
 
 
 
@@ -1761,7 +1663,7 @@ public class HOPPlannerNew extends Policy {
 
 
 
-    protected void handleOOM(GRBModel grb_model) throws GRBException {
+    protected void handleOOM(GRBModel grb_model,HashMap<PVAR_NAME, HashMap<ArrayList<LCONST>, Object>> subs) throws GRBException {
         System.out.println("JVM free memory : " + Runtime.getRuntime().freeMemory() + " / " +
                 Runtime.getRuntime().maxMemory() + " = " + ( ((double)Runtime.getRuntime().freeMemory()) / Runtime.getRuntime().maxMemory()) );
         System.out.println("round end / out of memory detected; trying cleanup");
@@ -1772,7 +1674,7 @@ public class HOPPlannerNew extends Policy {
 
         RDDL.EXPR.cleanUpGRB();
         System.gc();
-        firstTimeModel( );
+        firstTimeModel( subs);
     }
 
 
