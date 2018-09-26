@@ -8827,10 +8827,21 @@ public class RDDL {
 		public EXPR substitute(Map<LVAR, LCONST> subs,
 							   Map<PVAR_NAME, Map<ArrayList<LCONST>, Object>> constants,
 							   Map<TYPE_NAME, OBJECTS_DEF> objects, HashMap<TYPE_NAME, TYPE_DEF> hmtypes, HashMap<PVAR_NAME, PVARIABLE_DEF> hm_variables) throws Exception {
-			try {
-				if( isConstant(constants, objects, hmtypes,hm_variables  ) ){
-					return new REAL_CONST_EXPR( getDoubleValue(constants, objects, hmtypes,hm_variables,  null) );
+
+			if (isConstant(constants, objects, hmtypes, hm_variables)) {
+				try{
+					return new REAL_CONST_EXPR(getDoubleValue(constants, objects, hmtypes, hm_variables, null));
+
+					}catch (Exception e){
+					if(SHOW_TRACE_EXCEPTIONS)
+						e.printStackTrace();
+
+					if(SHOW_MODIFIED_EXCEPTIONS)
+						System.out.println("Handled Exception ::  substitute of NEG_EXPR  :: "+ toString());
 				}
+
+			}
+			try {
 
 				EXPR sub = _subnode.substitute(subs, constants, objects, hmtypes,hm_variables  );
 				if( sub.isConstant(constants, objects, hmtypes,hm_variables  ) ){
@@ -8839,14 +8850,16 @@ public class RDDL {
 					return new BOOL_CONST_EXPR( d == 1 ? false : true );
 				}
 				return new NEG_EXPR( sub );
-			} catch (Exception e) {
-				if(SHOW_TRACE_EXCEPTIONS)
-					e.printStackTrace();
+				}
+				catch (Exception e1) {
+					if(SHOW_TRACE_EXCEPTIONS)
+						e1.printStackTrace();
 
-				if(SHOW_MODIFIED_EXCEPTIONS)
-					System.out.println("Handled Exception ::  substitute of NEG_EXPR  :: "+ toString());
-				throw e;
-			}
+					if(SHOW_MODIFIED_EXCEPTIONS)
+						System.out.println("Handled Exception ::  substitute of NEG_EXPR  :: "+ toString());
+					throw e1;
+				}
+
 		}
 
 		@Override
