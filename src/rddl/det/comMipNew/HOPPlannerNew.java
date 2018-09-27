@@ -861,8 +861,7 @@ public class HOPPlannerNew extends Policy {
     protected void translateReward( final GRBModel grb_model,
                                     final boolean first_time ) throws Exception {
         System.out.println("---- Translate Reward ----");
-        grb_model.setObjective( new GRBLinExpr() );
-        grb_model.update();
+
 
         EXPR stationary_clear = rddl_state._reward;
         if ( !first_time && stationary_clear._bDet &&
@@ -873,9 +872,12 @@ public class HOPPlannerNew extends Policy {
             System.out.println("--Replacing NPWL Reward to PWL Reward");
             stationary_clear = replace_reward_pwl;
         }else if( !stationary_clear._bDet ){
+
             stationary_clear = future_gen.getFuture(stationary_clear,
                     this._random, constants, objects, hmtypes, hm_variables);
         }
+        grb_model.setObjective( new GRBLinExpr() );
+        grb_model.update();
 
         // CHECK THIS HARISH
         Pair<String,String> key = new Pair<String, String>(stationary_clear.toString(),
