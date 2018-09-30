@@ -8,6 +8,10 @@ import rddl.RDDL;
 import rddl.State;
 import util.Pair;
 
+import java.io.BufferedWriter;
+import java.io.FileOutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -17,12 +21,20 @@ import java.util.function.Consumer;
 
 public class HOPExplainModule extends HOPPlannerNew {
 
+    protected String STATE_KEY = "_State";
+    protected String ACTION_KEY = "_Action";
+    protected String INTERM_KEY = "_Interm";
+    protected String REWARD_KEY = "_Reward";
+    protected String PLAN_PATH  = "./Explanation_Output/HOP_Plans/";
+    protected String VISUAL_CROSSING_DOMAIN_FOLDER = "./Explanation_Output/HOP_Visual_Plans/";
+
 
     public  HOPExplainModule(String rddl_filename, String n_futures, String n_lookahead, String inst_name,
-                            String gurobi_timeout, String future_gen_type, String hindsight_strat, String rand_seed) throws Exception{
+                            String gurobi_timeout, String future_gen_type, String hindsight_strat, String rand_seed,String plan_file_name) throws Exception{
 
         super(rddl_filename,n_futures,n_lookahead,inst_name,gurobi_timeout,future_gen_type,hindsight_strat,rand_seed);
         System.out.println("dkfjkdjfkdjkfjd");
+        this.PLAN_PATH = this.PLAN_PATH + plan_file_name;
 
         //Need to think about the parameter for explaination.
 
@@ -35,62 +47,69 @@ public class HOPExplainModule extends HOPPlannerNew {
             if(DO_NPWL_PWL){
                 checkNonLinearExpressions(state);
             }
-            ArrayList<RDDL.PVAR_INST_DEF> actions = null;
-            try {
-                actions = getActions(s);
-                System.out.println("The Action Taken is >>" + actions.toString());
-                s.checkStateActionConstraints(actions);
-            }catch(Exception e1){
-                // This is the case when actions are infeasible or gurobi has infeasiblity.
-                actions = baseLineAction(s);
-            }
-            //Computing the next state!!>
-            state.computeNextState(actions,_random);
-            try{
-                state.checkStateActionConstraints(actions);
-            } catch (Exception e){
 
-                System.out.println("State or Action Contraint Voilated ");
-                throw e;
+
+
+            for(int i=0 ; i<10 ; i++){
+                ArrayList<RDDL.PVAR_INST_DEF> actions = null;
+                try {
+                    actions = getHOPPlans(s);
+                    System.out.println("The Action Taken is >>" + actions.toString());
+                    s.checkStateActionConstraints(actions);
+                }catch(Exception e1){
+                    // This is the case when actions are infeasible or gurobi has infeasiblity.
+                    actions = baseLineAction(s);
+                }
+                //Computing the next state!!>
+                s.computeNextState(actions,_random);
+                try{
+                    s.checkStateActionConstraints(actions);
+                } catch (Exception e){
+
+                    System.out.println("State or Action Contraint Voilated ");
+                    throw e;
+                }
+                s.advanceNextState();
+                final double immediate_reward = ((Number)domain._exprReward.sample(new HashMap<RDDL.LVAR,RDDL.LCONST>(),state,_random)).doubleValue();
+
+
             }
 
 
             //Need to get information on each state in future and their actions.
 
-
-
-
-
-
-            final double immediate_reward = ((Number)domain._exprReward.sample(new HashMap<RDDL.LVAR,RDDL.LCONST>(),state,_random)).doubleValue();
-
-
-
-
-
-
     }
 
 
 
-    @Override
-    public ArrayList<RDDL.PVAR_INST_DEF> getActions(State s) throws EvalException {
+    public ArrayList<RDDL.PVAR_INST_DEF> getHOPPlans(State s) throws Exception{
+        //This Function should output the plans for state "S";
         HashMap<RDDL.PVAR_NAME, HashMap<ArrayList<RDDL.LCONST>, Object>> subs = getSubsWithDefaults( s );
 
         if( static_grb_model == null ){
             System.out.println("----Initializing Gurobi model----");
-            firstTimeModel(subs );
+            firstTimeModel(subs);
         }
-        try {
-            Pair<Map<RDDL.EXPR, Double>,Integer> out_put = doPlan( subs, RECOVER_INFEASIBLE );
-            Map<RDDL.EXPR, Double> ret_expr = out_put._o1;
-            //This is the exit code.
-            int exit_code = out_put._o2;
-            //ArrayList<ArrayList<PVAR_INST_DEF>> ret_list = new ArrayList<ArrayList<PVAR_INST_DEF>>()
-            ret_list.clear();
-            ArrayList<RDDL.PVAR_INST_DEF> ret = getRootActions(ret_expr,s);
-            //System.out.println("####################################################");
+        try{
+            translateCPTs( subs, static_grb_model , false );
+            translateReward( static_grb_model , false);
+            translateInitialState( static_grb_model, subs );
 
+            int exit_code = -1;
+            try{
+                System.out.println("----STARTING OPTIMIZATION----");
+                grb_env.set( GRB.DoubleParam.TimeLimit, TIME_LIMIT_MINS*60 );
+                exit_code = goOptimize( static_grb_model);
+            }
+            catch( GRBException exc ){
+                int error_code = exc.getErrorCode();
+            }
+            finally{
+                System.out.println("Exit code " + exit_code );
+            }
+            Map<RDDL.EXPR, Double > ret  = outputResults( static_grb_model);
+            modelSummary( static_grb_model );
+            ArrayList<RDDL.PVAR_INST_DEF> ret1 = getRootActions(ret,s);
             if(exit_code ==3 ){
                 try {
                     throw new Exception("Model Infeasiblity Excepiton");
@@ -99,77 +118,82 @@ public class HOPExplainModule extends HOPPlannerNew {
                     throw e;
                 }
             }
-
+            /////////////////////////////////
+            Pair<ArrayList<HashMap<String,HashMap<RDDL.LCONST,Object>>>,ArrayList<ArrayList<String>>> plans_info = decomGRBPlans(static_grb_model);
+            ArrayList<HashMap<String,HashMap<RDDL.LCONST,Object>>> all_future_plans = plans_info._o1;
+            ArrayList<ArrayList<String>> all_futures_str = plans_info._o2;
+            vizPlansToFolder(all_future_plans,"VIZ_CONSENSUS_PLANS_F_5_L_5_N_");
+            printPlanToFile(all_futures_str,"CONSENSUS_PLANS_F_5_L_5.csv");
             cleanUp(static_grb_model);
-            return ret;
+            return ret1;
+
         } catch (Exception e) {
             e.printStackTrace();
+            throw e ;
         }
-        return null;
+
+
+
+    }
+
+
+    public void  vizPlansToFolder(ArrayList<HashMap<String,HashMap<RDDL.LCONST,Object>>> plans,String file_prefix) throws Exception{
+        CrossingWorldUI print_obj =new CrossingWorldUI();
+        for(int i=0 ; i<plans.size();i++){
+            String vizPlan = print_obj.runPlan(plans.get(i),this.lookahead);
+
+            try (Writer writer = new BufferedWriter(new OutputStreamWriter(
+                    new FileOutputStream(VISUAL_CROSSING_DOMAIN_FOLDER+file_prefix+"_"+String.valueOf(i)+".txt"), "utf-8"))) {
+                    writer.write(vizPlan);
+            }catch (Exception e ){
+                System.out.println("File Not Written : " + VISUAL_CROSSING_DOMAIN_FOLDER+file_prefix+"_"+String.valueOf(i)+".txt");
+                throw e;
+            }
+
+        }
+
     }
 
 
 
 
-    public Pair<Map< RDDL.EXPR, Double >,Integer> doPlan(HashMap<RDDL.PVAR_NAME, HashMap<ArrayList<RDDL.LCONST>, Object>> subs ,
-                                                         final boolean recover ) throws Exception{
-
-        System.out.println("----In doPlan-------");
-
-        System.out.println("----Translating CPTs with random Futures----");
-        translateCPTs( subs, static_grb_model , false );
-
-        System.out.println("----Translating reward with random Futures----");
-        translateReward( static_grb_model , false);
-
-        System.out.println("--------------Initial State-------------");
-        translateInitialState( static_grb_model, subs );
-
-        int exit_code = -1;
-        try{
-            System.out.println("----STARTING OPTIMIZATION----");
-            grb_env.set( GRB.DoubleParam.TimeLimit, TIME_LIMIT_MINS*60 );
-            if(OUTPUT_NAME_MAP_FILE){
-                outputNAMEMAPFile(static_grb_model);
-            }
-            exit_code = goOptimize( static_grb_model);
-        }
-
-        catch( GRBException exc ){
-            int error_code = exc.getErrorCode();
-            System.out.println("Error code : " + error_code );
-            if( recover ){//error_code == GRB.ERROR_OUT_OF_MEMORY && recover ){
-//				cleanUp(static_grb_model);
-                handleOOM( static_grb_model,subs );
-                return doPlan( subs, RECOVER_INFEASIBLE );//can cause infinite loop if set to true
-            }else{
-                System.out.println("The Solution is Infeasible");
-                throw exc;
-            }
-        }
-        finally{
-            System.out.println("Exit code " + exit_code );
-        }
-
-        Map<RDDL.EXPR, Double > ret  = outputResults( static_grb_model);
+    public Pair<ArrayList<HashMap<String,HashMap<RDDL.LCONST,Object>>>,ArrayList<ArrayList<String>>> decomGRBPlans(final GRBModel static_grb_model) throws Exception{
         HashMap<Pair<RDDL.LCONST,RDDL.LCONST>,Map<RDDL.EXPR,Double>> ret1 = extractALLInfoGurobi(static_grb_model);
         HashMap<Pair<RDDL.LCONST,RDDL.LCONST>,Double> reward_ret =extractRewardInfo(static_grb_model);
-        //Map< EXPR, Double > ret1 = outputAllResults(static_grb_model);
-        HashMap<String,HashMap<RDDL.LCONST,Object>> plan =getAFuturePlan(ret1, reward_ret,0);
-
-
-        if( OUTPUT_LP_FILE ) {
-            outputLPFile( static_grb_model );
+        ArrayList<ArrayList<String>> all_futures = new ArrayList<>();
+        ArrayList<HashMap<String,HashMap<RDDL.LCONST,Object>>> plans_list = new ArrayList<>();
+        for(int i=0 ; i<future_TERMS.size();i++){
+            HashMap<String,HashMap<RDDL.LCONST,Object>> plan =getAFuturePlan(ret1, reward_ret,i);
+            ArrayList<String> output =printPlanToArrayList(plan);
+            all_futures.add(output);
+            plans_list.add(plan);
         }
-        //This prints the model Summary
-        modelSummary( static_grb_model );
-        System.out.println("----> Cleaning up the Gurobi Model");
-        cleanUp( static_grb_model );
-        return new Pair<>(ret,exit_code);
+
+        return new Pair(plans_list,all_futures);
+    }
 
 
 
 
+    public void printPlanToFile(ArrayList<ArrayList<String>> plans, String file_name) throws Exception{
+        ArrayList<String> concat_list = new ArrayList<>();
+        for(int i=0 ; i<plans.size();i++){
+            for(int j=0 ;j<plans.get(i).size();j++){
+                try{
+                    String val = concat_list.get(j);
+                    concat_list.set(j,val+","+plans.get(i).get(j));
+                }catch (IndexOutOfBoundsException e){
+                    concat_list.add(j,plans.get(i).get(j));
+                }
+            }
+        }
+
+        try (Writer writer = new BufferedWriter(new OutputStreamWriter(
+                new FileOutputStream(PLAN_PATH+file_name), "utf-8"))) {
+            for(int i=0;i<concat_list.size();i++){
+                writer.write(concat_list.get(i)+"\n");
+            }
+        }
     }
 
 
@@ -180,10 +204,10 @@ public class HOPExplainModule extends HOPPlannerNew {
         *
         * */
         HashMap<String,HashMap<RDDL.LCONST,Object>> time_mapping = new HashMap<>();
-        time_mapping.put("_State",new HashMap<>());
-        time_mapping.put("_Action",new HashMap<>());
-        time_mapping.put("_Reward",new HashMap<>());
-        time_mapping.put("_Interm",new HashMap<>());
+        time_mapping.put(STATE_KEY,new HashMap<>());
+        time_mapping.put(ACTION_KEY,new HashMap<>());
+        time_mapping.put(REWARD_KEY,new HashMap<>());
+        time_mapping.put(INTERM_KEY,new HashMap<>());
         //This if for State,Action and Interm values
         for(int i=0 ; i<TIME_TERMS.size();i++){
              RDDL.LCONST future_term = future_TERMS.get(future_index);
@@ -502,6 +526,32 @@ public class HOPExplainModule extends HOPPlannerNew {
     }
 
 
+    public ArrayList<String> printPlanToArrayList(HashMap<String,HashMap<RDDL.LCONST,Object>> plan) throws Exception{
+        ArrayList<String> output = new ArrayList<>();
+
+        for(int i=0;i<TIME_TERMS.size();i++){
+            String str_state = "";
+            String str_action = "NOOP";
+            String str_reward = "";
+            str_state = plan.get(STATE_KEY).get(TIME_TERMS.get(i)).toString().replace(",",":");
+            str_reward = plan.get(REWARD_KEY).get(TIME_TERMS.get(i)).toString().replace(",",":");
+
+            try{
+                str_action = plan.get(ACTION_KEY).get(TIME_TERMS.get(i)).toString().replace(",",":");
+
+            }catch (Exception e){
+                System.out.println("No Action Variable");
+            }
+
+            output.add(str_state);
+            output.add(str_action);
+            output.add(str_reward);
+
+        }
+        return output;
+
+    }
+
 
     public void warpperRunExplaination() throws Exception{
 
@@ -544,8 +594,9 @@ public class HOPExplainModule extends HOPPlannerNew {
         String hindsight_strat = args[6];
         String num_of_rounds   = args[7];
         String rand_seed = args[8];
+        String plan_filename  = args[9];
 
-        HOPExplainModule hop_exp = new HOPExplainModule(rddl_file_path,n_Futures,n_lookahead,rddl_instance_name,gurobi_timeout,future_gen_type,hindsight_strat,rand_seed);
+        HOPExplainModule hop_exp = new HOPExplainModule(rddl_file_path,n_Futures,n_lookahead,rddl_instance_name,gurobi_timeout,future_gen_type,hindsight_strat,rand_seed,plan_filename);
         hop_exp.warpperRunExplaination();
 
     }
